@@ -54,7 +54,22 @@ EOT
             );
     }
 
-    protected function getReleasesFromGithub()
+  /**
+   * Get all releases, or only the latest.
+   *
+   * The "latest" release according to Github is the latest stable release based
+   * on commit date.
+   *
+   * This method does no filtering, sorting, or logic beyond calling the GH API.
+   *
+   * @see https://docs.github.com/en/rest/reference/repos#get-the-latest-release
+   *
+   * @param false $latest_only
+   *
+   * @return mixed
+   * @throws \Exception
+   */
+    protected function getReleasesFromGithub($latest_only = false)
     {
         $opts = [
             'http' => [
@@ -67,7 +82,9 @@ EOT
 
         $context = stream_context_create($opts);
 
-        $releases = file_get_contents('https://api.github.com/repos/' . $this->gitHubRepository . '/releases', false, $context);
+        $url = 'https://api.github.com/repos/' . $this->gitHubRepository . '/releases';
+        $url .= $latest_only ? '/latest' : '';
+        $releases = file_get_contents($url, false, $context);
         $releases = json_decode($releases);
 
         if (! isset($releases[0])) {
@@ -79,32 +96,59 @@ EOT
     protected function getLatestReleaseFromGithub()
     {
         $releases = $this->getReleasesFromGithub();
-        foreach ($releases as $release) {
-            if (count($release->assets)) {
-                $version = $release->tag_name;
-                $url = $release->assets[0]->browser_download_url;
-                return [ $version, $url ];
-            }
-        }
+        return $this->findLatestRelease($releases, true);
     }
 
+  /**
+   * Get the latest stable release.
+   *
+   * This function is greedy and tries to get the latest release as determined
+   * by the GitHub API. This will fail after new releases if the phar hasn't yet
+   * built, in which case we fall back to checking all releases.
+   *
+   * @return array
+   * @throws \Exception
+   */
     protected function getLatestStableReleaseFromGithub()
     {
+        // Try latest release first
+        $release = $this->getReleasesFromGithub(true);
+        if (count($release->assets)) {
+          return [ $release->tag_name, $release->assets[0]->browser_download_url ];
+        }
+
+        // Check all releases.
         $releases = $this->getReleasesFromGithub();
+        return $this->findLatestRelease($releases);
 
-        foreach ($releases as $release) {
-            $version = $release->tag_name;
-            $url     = $release->assets[0]->browser_download_url;
-            if (count($release->assets) && VersionParser::parseStability($version) === 'stable') {
-                break;
-            }
+    }
+
+  /**
+   * Find the latest release in an array of releases, as returned by GH API.
+   *
+   * Be aware that you and Github might have different definitions of "latest".
+   * We just take the first valid object returned by the releases API, but
+   * because this API does not sort releases deterministically it can produce
+   * unexpected results.
+   *
+   * @see https://github.com/consolidation/self-update/issues/9
+   *
+   * @param $releases
+   * @param false $preview
+   *
+   * @return array
+   * @throws \Exception
+   */
+    protected function findLatestRelease($releases, $preview = false) {
+      foreach ($releases as $release) {
+        $version = $release->tag_name;
+        $url = $release->assets[0]->browser_download_url;
+        if (count($release->assets) && ($preview || VersionParser::parseStability($version) === 'stable')) {
+          return [$version, $url];
         }
+      }
 
-        if (VersionParser::parseStability($version) !== 'stable') {
-            throw new \Exception('API error - no stable release found at GitHub repository ' . $this->gitHubRepository);
-        }
-
-        return [ $version, $url ];
+      throw new \Exception('API error - no release found at GitHub repository ' . $this->gitHubRepository);
     }
 
     public function getLatest($preview): array {
