@@ -87,7 +87,7 @@ EOT
         $releases = file_get_contents($url, false, $context);
         $releases = json_decode($releases);
 
-        if (! isset($releases[0])) {
+        if (isset($releases->message)) {
             throw new \Exception('API error - no release found at GitHub repository ' . $this->gitHubRepository);
         }
         return $releases;
