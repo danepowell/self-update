@@ -51,21 +51,29 @@ class SelfUpdateManager
             'preview' => false,
             'compatible' => false,
             'version_constraint' => null,
+            // Specify allowed asset filename patterns (wildcards allowed)
+            'asset_patterns' => ['*.phar'],
         ], $options);
 
         foreach ($this->getReleasesFromGithub() as $releaseVersion => $release) {
-            // Find the first asset with a .phar extension.
-            $pharAsset = null;
+            $matchingAsset = null;
             if (isset($release['assets']) && is_array($release['assets'])) {
                 foreach ($release['assets'] as $asset) {
-                    if (is_object($asset) && isset($asset->content_type) && $asset->content_type === 'application/octet-stream') {
-                        $pharAsset = $asset;
-                        break;
+                    if (!isset($asset->name) || !isset($asset->browser_download_url)) {
+                        continue;
+                    }
+                    foreach ($options['asset_patterns'] as $pattern) {
+                        // Convert wildcard pattern to regex
+                        $regex = '/^' . str_replace(['*', '?'], ['.*', '.'], preg_quote($pattern, '/')) . '$/i';
+                        if (preg_match($regex, $asset->name)) {
+                            $matchingAsset = $asset;
+                            break 2;
+                        }
                     }
                 }
             }
 
-            if (!$pharAsset) {
+            if (!$matchingAsset) {
                 continue;
             }
 
@@ -87,7 +95,8 @@ class SelfUpdateManager
             return [
                 'version' => $releaseVersion,
                 'tag_name' => $release['tag_name'],
-                'download_url' => $pharAsset->browser_download_url,
+                'download_url' => $matchingAsset->browser_download_url,
+                'asset_name' => $matchingAsset->name,
             ];
         }
 
