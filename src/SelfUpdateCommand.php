@@ -84,21 +84,25 @@ EOT
         $versionConstraintArg = $input->getArgument('version_constraint');
 
         // Determine asset patterns
-        $assetPatterns = [];
+        $assetPattern = '';
         if ($isPhar) {
-            $assetPatterns[] = '*.phar';
+            $assetPattern = '*.phar';
         } else {
             // Assume native binary zip pattern: native-<name>-<platform>.zip
             $platform = php_uname('s') === 'Linux' ? 'linux' : (php_uname('s') === 'Darwin' ? 'macos' : 'windows');
             $arch = php_uname('m');
-            $assetPatterns[] = 'native-' . $programName . '-' . $platform . '-' . $arch . '.zip';
+            // Maybe one day the world can agree on what to call this architecture.
+            if ($arch === 'arm64') {
+                $arch = 'aarch64';
+            }
+            $assetPattern = 'native-' . $programName . '-' . $platform . '-' . $arch . '.zip';
         }
 
         $options = [
             'preview' => $isPreviewOptionSet,
             'compatible' => $isCompatibleOptionSet,
             'version_constraint' => $versionConstraintArg,
-            'asset_patterns' => $assetPatterns,
+            'asset_pattern' => $assetPattern,
         ];
 
         if ($this->selfUpdateManager->isUpToDate($options)) {
