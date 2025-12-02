@@ -136,11 +136,15 @@ EOT
                 if ($zip->open($tempFilename) === TRUE) {
                     // Extract binary (assume same name as programName)
                     $extractedPath = dirname($localFilename) . '/' . $programName . '-extracted';
-                    if ($zip->extractTo(dirname($extractedPath))) {
+                    if (!mkdir($extractedPath) && !is_dir($extractedPath)) {
+                        throw new \RuntimeException(sprintf('Directory "%s" was not created', $extractedPath));
+                    }
+                    if ($zip->extractTo($extractedPath)) {
                         $zip->close();
                         @chmod($extractedPath . '/' . $programName, 0777 & ~umask());
                         @rename($extractedPath . '/' . $programName, $localFilename);
                         @unlink($tempFilename);
+                        @rmdir($extractedPath);
                         $output->writeln('<info>Successfully updated ' . $programName . '</info>');
                     } else {
                         $zip->close();
