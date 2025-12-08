@@ -55,9 +55,13 @@ EOT
      */
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
+        if (!$this->ignorePharRunningCheck && empty(\Phar::running())) {
+            throw new \RuntimeException(self::SELF_UPDATE_COMMAND_NAME . ' only works when running the phar version of ' . $this->selfUpdateManager->applicationName . '.');
+        }
+
         $localFilename = realpath($_SERVER['argv'][0]) ?: $_SERVER['argv'][0];
         $programName   = basename($localFilename);
-        $isPhar = (substr($localFilename, -5) === '.phar');
+        $isPhar = PHP_SAPI !== 'micro';
         $tempFilename = dirname($localFilename) . '/' . basename($localFilename, $isPhar ? '.phar' : '') . '-temp' . ($isPhar ? '.phar' : '');
 
         // check for permissions in local filesystem before start connection process
@@ -84,9 +88,8 @@ EOT
         $versionConstraintArg = $input->getArgument('version_constraint');
 
         // Determine asset patterns
-        $assetPattern = '';
         if ($isPhar) {
-            $assetPattern = '*.phar';
+            $assetPattern = '/^.*\.phar$/i';
         } else {
             // Assume native binary zip pattern: native-<name>-<platform>.zip
             $platform = php_uname('s') === 'Linux' ? 'linux' : (php_uname('s') === 'Darwin' ? 'macos' : 'windows');
@@ -95,7 +98,7 @@ EOT
             if ($arch === 'arm64') {
                 $arch = 'aarch64';
             }
-            $assetPattern = 'native-' . $programName . '-' . $platform . '-' . $arch . '.zip';
+            $assetPattern = '/^.*-' . $platform . '-' . $arch . '\.zip$/i';
         }
 
         $options = [
@@ -124,6 +127,7 @@ EOT
             \error_reporting(E_ALL); // suppress notices
 
             if ($isPhar) {
+                $output->writeln('<info>Updating phar...</info>');
                 @chmod($tempFilename, 0777 & ~umask());
                 // test the phar validity
                 $phar = new \Phar($tempFilename);
@@ -131,6 +135,7 @@ EOT
                 @rename($tempFilename, $localFilename);
                 $output->writeln('<info>Successfully updated ' . $programName . '</info>');
             } else {
+                $output->writeln('<info>Updating native binary...</info>');
                 // Native binary: extract from zip and replace
                 $zip = new \ZipArchive();
                 if ($zip->open($tempFilename) === TRUE) {

@@ -51,8 +51,7 @@ class SelfUpdateManager
             'preview' => false,
             'compatible' => false,
             'version_constraint' => null,
-            // Specify allowed asset filename pattern (wildcards allowed)
-            'asset_pattern' => '*.phar',
+            'asset_pattern' => '/^.*\.phar$/i',
         ], $options);
 
         foreach ($this->getReleasesFromGithub() as $releaseVersion => $release) {
@@ -63,9 +62,9 @@ class SelfUpdateManager
                         continue;
                     }
                     // Convert wildcard pattern to regex
-                    $regex = '/^' . str_replace(['*', '?'], ['.*', '.'], preg_quote($options['asset_pattern'], '/')) . '$/i';
-                    if (preg_match($regex, $asset->name)) {
+                    if (preg_match($options['asset_pattern'], $asset->name)) {
                         $matchingAsset = $asset;
+                        break;
                     }
                 }
             }
