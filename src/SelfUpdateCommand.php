@@ -62,7 +62,7 @@ EOT
         $localFilename = realpath($_SERVER['argv'][0]) ?: $_SERVER['argv'][0];
         $programName   = basename($localFilename);
         $isPhar = PHP_SAPI !== 'micro';
-        $tempFilename = dirname($localFilename) . '/' . basename($localFilename, $isPhar ? '.phar' : '') . '-temp' . ($isPhar ? '.phar' : '');
+        $tempFilename = dirname($localFilename) . '/' . basename($localFilename, $isPhar ? '.phar' : '') . '-temp' . ($isPhar ? '.phar' : '.tar.gz');
 
         // check for permissions in local filesystem before start connection process
         if (! is_writable($tempDirectory = dirname($tempFilename))) {
