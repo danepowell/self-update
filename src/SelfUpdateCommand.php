@@ -91,14 +91,14 @@ EOT
         if ($isPhar) {
             $assetPattern = '/^.*\.phar$/i';
         } else {
-            // Assume native binary zip pattern: native-<name>-<platform>.zip
+            // Assume native binary tar.gz pattern: native-<name>-<platform>.tar.gz
             $platform = php_uname('s') === 'Linux' ? 'linux' : (php_uname('s') === 'Darwin' ? 'macos' : 'windows');
             $arch = php_uname('m');
             // Maybe one day the world can agree on what to call this architecture.
             if ($arch === 'arm64') {
                 $arch = 'aarch64';
             }
-            $assetPattern = '/^.*-' . $platform . '-' . $arch . '\.zip$/i';
+            $assetPattern = '/^.*-' . $platform . '-' . $arch . '\.tar.gz$/i';
         }
 
         $options = [
@@ -136,27 +136,22 @@ EOT
                 $output->writeln('<info>Successfully updated ' . $programName . '</info>');
             } else {
                 $output->writeln('<info>Updating native binary...</info>');
-                // Native binary: extract from zip and replace
-                $zip = new \ZipArchive();
-                if ($zip->open($tempFilename) === TRUE) {
+                // Native binary: extract from tar.gz and replace
+                try {
+                    $phar = new \PharData($tempFilename);
                     // Extract binary (assume same name as programName)
                     $extractedPath = dirname($localFilename) . '/' . $programName . '-extracted';
                     if (!mkdir($extractedPath) && !is_dir($extractedPath)) {
                         throw new \RuntimeException(sprintf('Directory "%s" was not created', $extractedPath));
                     }
-                    if ($zip->extractTo($extractedPath)) {
-                        $zip->close();
-                        @chmod($extractedPath . '/' . $programName, 0777 & ~umask());
-                        @rename($extractedPath . '/' . $programName, $localFilename);
-                        @unlink($tempFilename);
-                        @rmdir($extractedPath);
-                        $output->writeln('<info>Successfully updated ' . $programName . '</info>');
-                    } else {
-                        $zip->close();
-                        throw new \RuntimeException('Failed to extract binary from zip');
-                    }
-                } else {
-                    throw new \RuntimeException('Failed to open zip file');
+                    $phar->extractTo($extractedPath, $programName, TRUE);
+                    @chmod($extractedPath . '/' . $programName, 0777 & ~umask());
+                    @rename($extractedPath . '/' . $programName, $localFilename);
+                    @unlink($tempFilename);
+                    @rmdir($extractedPath);
+                    $output->writeln('<info>Successfully updated ' . $programName . '</info>');
+                } catch (\Exception $e) {
+                    throw new \RuntimeException('Failed to extract binary from tar.gz: ' . $e->getMessage());
                 }
             }
 
